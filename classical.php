@@ -10,21 +10,25 @@
 
 define('SERVICE_URL', 'https://gamma.byu.edu/ry/ae/prod/registration/cgi/weeklySched.cgi/');
 define('COOKIE_NAME', 'BYU-Web-Session');
+function getGammaLoginURL($target) { return 'https://gamma.byu.edu/login?target=' . urlencode($target); }
+
 define('TIMEZONE', 'America/Denver');
 date_default_timezone_set(TIMEZONE);
-
 function getSemesterStartDate() { return array('year' => 2011, 'month' => 8, 'day' => 29); }
 function getSemesterEndDate() { return array('year' => 2011, 'month' => 12, 'day' => 8); }
 
+define('THIS_URL', 'https://'.$_SERVER['HTTP_HOST'].$_SERVER['REQUEST_URI']);
+
 // force HTTPS so we can get the secure-only cookie
 if (!isset($_SERVER['HTTPS'])) {
-    header('Location: https://'.$_SERVER['HTTP_HOST'].$_SERVER['REQUEST_URI']);
+    header('Location: '.THIS_URL);
     exit;
 }
 
 $meetings = getMeetings();
 if (!$meetings) {
-        ?>You don't have a valid BYU-Web-Session cookie. Go log in to <a href="<?=SERVICE_URL?>">the schedule page</a> and come back.<?php
+        // no cookie -- send them to get us a web-session cookie and come back
+        header('Location: ' . getGammaLoginURL(THIS_URL));
         exit;
 }
 
@@ -54,8 +58,9 @@ function getMeetings() {
         if ($response->headers['Status-Code'] == 302) {
             return null;
         } else {
-            echo 'failed';
+            echo 'failed getting '.SERVICE_URL;
             var_dump($response);
+            die;
         }
     }
 
@@ -160,7 +165,6 @@ function getLocation($meeting) {
 }
 
 function getCookie() {
-    // get cookie
     $cookie = isset($_COOKIE[COOKIE_NAME]) ? $_COOKIE[COOKIE_NAME] : null;
     return $cookie;
 }
