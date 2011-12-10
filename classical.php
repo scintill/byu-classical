@@ -15,8 +15,6 @@ function getGammaLoginURL($target) { return 'https://gamma.byu.edu/login?target=
 
 define('TIMEZONE', 'America/Denver');
 date_default_timezone_set(TIMEZONE);
-function getSemesterStartDate() { return array('year' => 2011, 'month' => 8, 'day' => 29); }
-function getSemesterEndDate() { return array('year' => 2011, 'month' => 12, 'day' => 8); }
 
 define('THIS_URL', 'https://'.$_SERVER['HTTP_HOST'].$_SERVER['REQUEST_URI']);
 
@@ -26,14 +24,14 @@ if (!isset($_SERVER['HTTPS'])) {
     exit;
 }
 
-$meetings = getMeetings();
-if (!$meetings) {
+$calData = getCalendarModel();
+if (!$calData) {
         // no cookie -- send them to get us a web-session cookie and come back
         header('Location: ' . getGammaLoginURL(THIS_URL));
         exit;
 }
 
-$calendar = createCalendar($meetings);
+$calendar = createCalendar($calData);
 if (isset($_GET['e'])) {
     echo '<pre>';
     echo $calendar->createCalendar();
@@ -44,7 +42,7 @@ if (isset($_GET['e'])) {
 
 exit;
 
-function getMeetings() {
+function getCalendarModel() {
     $cookie = getCookie();
     if (!$cookie) {
         return null;
@@ -99,10 +97,14 @@ function getMeetings() {
         $lastMeeting = $meeting;
     }
 
-    return $meetings;
+    return (object)array(
+        'start' => parseDateToIcal($data->start_year_term),
+        'end' => parseDateToIcal($data->end_year_term),
+        'meetings' => $meetings,
+    );
 }
 
-function createCalendar($meetings) {
+function createCalendar($calData) {
     require_once('iCalCreator.class.php');
 
     $vcalendar = new vcalendar();
@@ -119,21 +121,25 @@ function createCalendar($meetings) {
 
     $vcalendar->setConfig('filename', 'schedule.ics');
 
-    foreach ($meetings as $meeting) {
+    foreach ($calData->meetings as $meeting) {
         $vevent = new vevent();
         $byuDayToICalDay = array('M' => 'MO', 'Tu' => 'TU', 'W' => 'WE', 'Th' => 'TH', 'F' => 'FR', 'S' => 'SA');
 
-        list($start, $end) = explode(' - ', $meeting->class_period);
-        $start = parseTime($start);
-        $end   = parseTime($end);
-        $vevent->setProperty('dtstart', $start);
-        $vevent->setProperty('dtend', $end);
+        list($classStart, $classEnd) = explode(' - ', $meeting->class_period);
+        // put class start and end times on the first day of the semester. recurrence will get it right
+        $classStart = getSemesterDate($calData->start, $classStart);
+        $classEnd   = getSemesterDate($calData->start, $classEnd);
+        $vevent->setProperty('dtstart', $classStart);
+        $vevent->setProperty('dtend', $classEnd);
+
+        // stamp the events as being created at the beginning of the semester - don't know if anyone pays attentionto this
+        $vevent->setProperty('dtstamp', $calData->start); 
 
         $days = array();
         foreach ($meeting->days as $byuDay) {
             $days[] = array('DAY' => $byuDayToICalDay[$byuDay]);
         }
-        $vevent->setProperty('rrule', array('FREQ' => 'WEEKLY', 'BYDAY' => $days, 'UNTIL' => getSemesterEndDate()));
+        $vevent->setProperty('rrule', array('FREQ' => 'WEEKLY', 'BYDAY' => $days, 'UNTIL' => $calData->end));
         $vevent->setProperty('summary', getSummary($meeting));
         $vevent->setProperty('location', getLocation($meeting));
         
@@ -143,21 +149,21 @@ function createCalendar($meetings) {
     return $vcalendar;
 }
 
-function parseTime($str) {
-    $pm = substr($str, -1, 1);
+function getSemesterDate($base, $timeStr) {
+    $pm = substr($timeStr, -1, 1);
     if ($pm == 'p') {
         $pm = true;
     } else {
         $pm = false;
     }
-    list($hour, $minute) = explode(':', $str);
+    list($hour, $minute) = explode(':', $timeStr);
     $hour = (int)$hour;
     $minute = (int)$minute;
     if ($pm) {
         $hour += 12;
     }
-
-    $time = getSemesterStartDate();
+    
+    $time = $base;
     $time['hour'] = $hour;
     $time['min'] = $minute;
     $time['sec'] = 0;
@@ -177,4 +183,14 @@ function getLocation($meeting) {
 function getCookie() {
     $cookie = isset($_COOKIE[COOKIE_NAME]) ? $_COOKIE[COOKIE_NAME] : null;
     return $cookie;
+}
+
+function parseDateToIcal($str) {
+    $ts = strtotime($str);
+    $ical = explode(' ', date('Y n j', $ts));
+    return array(
+        'year' => (int)$ical[0],
+        'month' => (int)$ical[1],
+        'day' => (int)$ical[2]
+    );
 }
