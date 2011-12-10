@@ -9,6 +9,7 @@
  */
 
 define('SERVICE_URL', 'https://gamma.byu.edu/ry/ae/prod/registration/cgi/weeklySched.cgi/');
+define('SERVICE_KEY', 'WeeklySchedService');
 define('COOKIE_NAME', 'BYU-Web-Session');
 function getGammaLoginURL($target) { return 'https://gamma.byu.edu/login?target=' . urlencode($target); }
 
@@ -58,14 +59,23 @@ function getMeetings() {
         if ($response->headers['Status-Code'] == 302) {
             return null;
         } else {
-            echo 'failed getting '.SERVICE_URL;
-            var_dump($response);
-            die;
+            throw new RuntimeException('failed getting '.SERVICE_URL.', got '.print_r($response, true));
         }
     }
 
     $data = json_decode($response->body);
-    $data = $data->{'Weekly Schedule Service'}->response;
+
+    if (isset($data->{SERVICE_KEY})) {
+        $data = $data->{SERVICE_KEY};
+    } else {
+        $data = null;
+    }
+
+    if (!isset($data->request->status) || $data->request->status != 200) {
+        throw new RuntimeException('failed getting '.SERVICE_URL.', got '.$response->body);
+    }
+
+    $data = $data->response;
 
     $meetings = array();
     $lastMeeting = null;
