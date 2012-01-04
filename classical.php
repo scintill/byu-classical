@@ -88,7 +88,7 @@ function getCalendarModel() {
             $meeting->course = $schedule_row->course;
         }
         $meeting->class_period = $schedule_row->class_period;
-        preg_match_all('|([A-Z])([a-z]?)|', $schedule_row->days, $matches);
+        preg_match_all('|([A-Z][a-z]?)|', $schedule_row->days, $matches);
         $meeting->days = $matches[1];
         $meeting->room = $schedule_row->room;
         $meeting->building = $schedule_row->building;
@@ -127,6 +127,7 @@ function createCalendar($calData) {
 
         list($classStart, $classEnd) = explode(' - ', $meeting->class_period);
         // put class start and end times on the first day of the semester. recurrence will get it right
+        // TODO wrong! giving a recurrence that I think "excludes" the actual date doesn't work
         $classStart = getSemesterDate($calData->start, $classStart);
         $classEnd   = getSemesterDate($calData->start, $classEnd);
         $vevent->setProperty('dtstart', $classStart);
