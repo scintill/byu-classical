@@ -121,26 +121,31 @@ function createCalendar($calData) {
 
     $vcalendar->setConfig('filename', 'schedule.ics');
 
+    $byuDayToICalDay = array('M' => 'MO', 'T' => 'TU', 'W' => 'WE', 'Th' => 'TH', 'F' => 'FR', 'S' => 'SA');
     foreach ($calData->meetings as $meeting) {
         $vevent = new vevent();
-        $byuDayToICalDay = array('M' => 'MO', 'Tu' => 'TU', 'W' => 'WE', 'Th' => 'TH', 'F' => 'FR', 'S' => 'SA');
 
         list($classStart, $classEnd) = explode(' - ', $meeting->class_period);
-        // put class start and end times on the first day of the semester. recurrence will get it right
-        // TODO wrong! giving a recurrence that I think "excludes" the actual date doesn't work
+        // put class start and end times on the first day of the semester. recurrence (esp. exrules) will get it right
         $classStart = getSemesterDate($calData->start, $classStart);
         $classEnd   = getSemesterDate($calData->start, $classEnd);
         $vevent->setProperty('dtstart', $classStart);
         $vevent->setProperty('dtend', $classEnd);
 
-        // stamp the events as being created at the beginning of the semester - don't know if anyone pays attentionto this
+        // stamp the events as being created at the beginning of the semester - don't know if anyone pays attention to this
         $vevent->setProperty('dtstamp', $calData->start); 
 
         $days = array();
-        foreach ($meeting->days as $byuDay) {
-            $days[] = array('DAY' => $byuDayToICalDay[$byuDay]);
+        $exdays = array();
+        foreach ($byuDayToICalDay as $byuDay => $iCalDay) {
+            if (in_array($byuDay, $meeting->days)) {
+                $days[] = array('DAY' => $iCalDay);
+            } else {
+                $exdays[] = array('DAY' => $iCalDay);
+            }
         }
         $vevent->setProperty('rrule', array('FREQ' => 'WEEKLY', 'BYDAY' => $days, 'UNTIL' => $calData->end));
+        $vevent->setProperty('exrule', array('FREQ' => 'WEEKLY', 'BYDAY' => $exdays));
         $vevent->setProperty('summary', getSummary($meeting));
         $vevent->setProperty('location', getLocation($meeting));
         
