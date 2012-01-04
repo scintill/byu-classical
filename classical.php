@@ -159,7 +159,7 @@ function getSemesterDate($base, $timeStr) {
     list($hour, $minute) = explode(':', $timeStr);
     $hour = (int)$hour;
     $minute = (int)$minute;
-    if ($pm) {
+    if ($pm && $hour < 12) {
         $hour += 12;
     }
     
